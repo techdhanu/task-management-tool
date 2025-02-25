@@ -4,10 +4,20 @@ const Task = require('../models/Task');
 const createTask = async (req, res) => {
   try {
     const { title, description, dueDate, priority } = req.body;
-    const newTask = new Task({ title, description, dueDate, priority });
+
+    // Create task without requiring user field
+    const newTask = new Task({
+      title,
+      description,
+      dueDate,
+      priority,
+      // If you have authentication set up, you would include user: req.user.id
+    });
+
     await newTask.save();
     res.status(201).json(newTask);
   } catch (error) {
+    console.error('Error creating task:', error);
     res.status(500).json({ message: 'Error creating task', error });
   }
 };

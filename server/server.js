@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
-const taskRoutes = require('./routes/taskRoutes');
+const taskRoutes = require('./routes/taskroutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -19,14 +19,8 @@ mongoose.connect(process.env.MONGO_URI)
     .catch((err) => console.error('MongoDB connection error:', err));
 
 // Routes
-app.use('/api/tasks', taskRoutes); // Changed to /api/tasks for consistency
+app.use('/api/tasks', taskRoutes); // Make sure path matches your API calls
 app.use('/api/auth', authRoutes);
-
-// Basic error handling
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
-});
 
 // Start the server
 app.listen(PORT, () => {

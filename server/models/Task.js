@@ -23,6 +23,10 @@ const taskSchema = new mongoose.Schema({
     enum: ['Low', 'Medium', 'High'],
     default: 'Medium',
   },
+  completed: {    // Add the completed field
+    type: Boolean,
+    default: false,
+  },
 }, { timestamps: true });
 
 // Create the Task model

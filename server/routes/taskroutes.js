@@ -9,15 +9,15 @@ const {
 const router = express.Router();
 
 // Route to get all tasks
-router.get('/tasks', getTasks);
+router.get('/', getTasks);
 
 // Route to create a new task
-router.post('/tasks', createTask);
+router.post('/', createTask);
 
 // Route to update a task by id
-router.put('/tasks/:id', updateTask);
+router.put('/:id', updateTask);
 
 // Route to delete a task by id
-router.delete('/tasks/:id', deleteTask);
+router.delete('/:id', deleteTask);
 
 module.exports = router;
