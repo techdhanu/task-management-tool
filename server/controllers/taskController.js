@@ -1,23 +1,19 @@
 const Task = require('../models/Task');
+const { suggestPriority } = require('../services/aiservices'); // Import AI service
 
 // Create a new task
 const createTask = async (req, res) => {
   try {
     const { title, description, dueDate, priority } = req.body;
 
-    // Create task without requiring user field
-    const newTask = new Task({
-      title,
-      description,
-      dueDate,
-      priority,
-      // If you have authentication set up, you would include user: req.user.id
-    });
+    // Use AI service to suggest priority if not provided
+    const taskPriority = priority || suggestPriority(description);
 
+    const newTask = new Task({ title, description, dueDate, priority: taskPriority });
     await newTask.save();
+
     res.status(201).json(newTask);
   } catch (error) {
-    console.error('Error creating task:', error);
     res.status(500).json({ message: 'Error creating task', error });
   }
 };
