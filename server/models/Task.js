@@ -17,15 +17,41 @@ const taskSchema = new mongoose.Schema({
   },
   dueDate: {
     type: Date,
+    required: true,
   },
   priority: {
     type: String,
     enum: ['Low', 'Medium', 'High'],
     default: 'Medium',
   },
-  completed: {    // Add the completed field
+  completed: {
     type: Boolean,
     default: false,
+  },
+  // AI prediction fields
+  productivityPrediction: {
+    type: Number,  // Numeric score prediction
+  },
+  taskbenchPrediction: {
+    type: Number,  // Numeric score prediction
+  },
+  jiraTaskComplexity: {
+    type: Number,  // Numeric score prediction
+  },
+  resourceEstimate: {
+    type: Number,  // Numeric resource estimate
+  },
+  // New enhanced fields
+  teamSize: {
+    type: Number,
+    default: 1,
+  },
+  estimatedDays: {
+    type: Number,
+    default: 1,
+  },
+  aiSummary: {
+    type: String,
   },
 }, { timestamps: true });
 
