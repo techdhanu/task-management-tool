@@ -1,0 +1,15 @@
+/* client/src/pages/NotFound.css */
+.not-found {
+    padding: 20px;
+    text-align: center;
+    color: #333;
+}
+
+.not-found h1 {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.not-found p {
+    font-size: 1.1em;
+}

@@ -1,0 +1,9 @@
+/* client/src/pages/Tasks.css */
+.tasks-page {
+    padding: 20px;
+}
+
+.error {
+    color: red;
+    margin-bottom: 10px;
+}

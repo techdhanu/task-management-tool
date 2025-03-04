@@ -1,0 +1,26 @@
+/* client/src/pages/TaskCalendar.css */
+.task-calendar {
+    padding: 20px;
+}
+
+.calendar-view {
+    display: grid;
+    gap: 10px;
+}
+
+.calendar-event {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+.calendar-event h3 {
+    margin: 0 0 5px;
+    color: #333;
+}
+
+.error {
+    color: red;
+    margin-bottom: 10px;
+}

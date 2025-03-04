@@ -1,0 +1,35 @@
+/* client/src/pages/Dashboard.css */
+.dashboard {
+    padding: 20px;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.stat-card {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    text-align: center;
+}
+
+.stat-card h3 {
+    margin: 0 0 10px;
+    color: #333;
+}
+
+.stat-card p {
+    margin: 0;
+    font-size: 1.2em;
+    color: #007bff;
+}
+
+.error {
+    color: red;
+    margin-bottom: 10px;
+}

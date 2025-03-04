@@ -1,21 +1,20 @@
+// client/src/api/api.js
 import axios from 'axios';
 
-// Set up the base URL for your API
-const API = axios.create({
-    baseURL: 'http://localhost:5001/api',
+const api = axios.create({
+    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-// Task Management API calls
-export const createTask = (taskData) => API.post('/tasks', taskData);
-export const getTasks = () => API.get('/tasks');
-export const updateTask = (id, updatedTask) => API.put(`/tasks/${id}`, updatedTask);
-export const deleteTask = (id) => API.delete(`/tasks/${id}`);
+export const createTask = (taskData) => api.post('/tasks', taskData);
+export const getTasks = () => api.get('/tasks');
+export const updateTask = (id, taskData) => api.put(`/tasks/${id}`, taskData);
+export const deleteTask = (id) => api.delete(`/tasks/${id}`);
+export const getCalendarEvents = () => api.get('/calendar/events');
+export const createEvent = (eventData) => api.post('/calendar/events', eventData);
+export const updateEvent = (eventId, eventData) => api.put(`/calendar/events/${eventId}`, eventData);
+export const deleteEvent = (eventId) => api.delete(`/calendar/events/${eventId}`);
 
-// Authentication API calls (if you have login functionality)
-export const login = (userData) => API.post('/auth/login', userData);
-export const register = (userData) => API.post('/auth/register', userData);
-
-// Calendar API calls
-export const syncCalendar = (calendarData) => API.post('/calendar/sync', calendarData);
-
-export default API;
+export default api;

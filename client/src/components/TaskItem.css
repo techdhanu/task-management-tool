@@ -1,0 +1,32 @@
+/* client/src/components/TaskItem.css */
+.task-item {
+    background-color: #ffffff;
+    padding: 10px;
+    margin: 5px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.task-item h3 {
+    margin: 0 0 5px;
+    color: #333;
+}
+
+.task-item p {
+    margin: 0 0 5px;
+    color: #666;
+}
+
+.task-item button {
+    padding: 5px 10px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.task-item button:hover {
+    background-color: #c82333;
+}
