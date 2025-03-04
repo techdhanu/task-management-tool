@@ -1,8 +1,9 @@
 // client/src/components/KanbanBoard.js
 import React, { useEffect, useState } from 'react';
-import { getTasks, deleteTask } from '../api/api';
-import TaskItem from './TaskItem'; // Assume TaskItem exists or create it
-import './KanbanBoard.css'; // Update to correct path
+import { getTasks, updateTask, deleteTask } from '../api/api';
+import TaskItem from './TaskItem';
+import { toast } from 'react-toastify'; // Import only toast (no ToastContainer)
+import './KanbanBoard.css';
 
 const KanbanBoard = () => {
     const [tasks, setTasks] = useState([]);
@@ -22,13 +23,17 @@ const KanbanBoard = () => {
         fetchTasks();
     }, []);
 
-    const handleTaskDeleted = async (taskId) => {
+    const handleTaskDeleted = (taskId) => {
+        setTasks(tasks.filter(task => task._id !== taskId));
+    };
+
+    const handleStatusUpdate = async (taskId, newStatus) => {
         try {
-            await deleteTask(taskId);
-            setTasks(tasks.filter(task => task._id !== taskId));
-            setError('');
+            const updatedTask = await updateTask(taskId, { status: newStatus });
+            setTasks(tasks.map(task => task._id === taskId ? updatedTask.data : task)); // Update state with new task
+            toast.success(`Task moved to ${newStatus} successfully!`);
         } catch (err) {
-            setError('Error deleting task: ' + (err.response?.data?.message || err.message));
+            toast.error(`Error moving task to ${newStatus}: ` + (err.response?.data?.message || err.message));
         }
     };
 
@@ -46,7 +51,10 @@ const KanbanBoard = () => {
                 <div className="column in-progress">
                     <h2>In Progress</h2>
                     {tasks.filter(task => task.status === 'In Progress').map(task => (
-                        <TaskItem key={task._id} task={task} onDelete={handleTaskDeleted} />
+                        <div key={task._id} className="task-item-with-actions">
+                            <TaskItem task={task} onDelete={handleTaskDeleted} />
+                            <button onClick={() => handleStatusUpdate(task._id, 'Completed')}>Completed</button>
+                        </div>
                     ))}
                 </div>
                 <div className="column completed">

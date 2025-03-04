@@ -1,16 +1,41 @@
 // client/src/components/TaskItem.js
 import React from 'react';
-import PropTypes from 'prop-types'; // Import PropTypes
+import { updateTask, deleteTask } from '../api/api';
+import PropTypes from 'prop-types';
+import { toast } from 'react-toastify'; // Import only toast (no ToastContainer)
 import './TaskItem.css';
 
 function TaskItem({ task, onDelete }) {
+    const handleDelete = async () => {
+        try {
+            await deleteTask(task._id);
+            onDelete(task._id);
+            toast.success('Task deleted successfully!'); // Keep toast call
+        } catch (err) {
+            toast.error('Error deleting task: ' + (err.response?.data?.message || err.message)); // Keep toast call
+        }
+    };
+
+    const handleInProgress = async () => {
+        try {
+            const updatedTask = await updateTask(task._id, { status: 'In Progress' });
+            onDelete(task._id); // Refresh the list (you might want to update state directly)
+            toast.success('Task moved to In Progress successfully!'); // Keep toast call
+        } catch (err) {
+            toast.error('Error moving task to In Progress: ' + (err.response?.data?.message || err.message)); // Keep toast call
+        }
+    };
+
     return (
         <div className="task-item">
             <h3>{task.title}</h3>
             <p>{task.description}</p>
             <p>Due: {new Date(task.dueDate).toLocaleString()}</p>
             <p>Priority: {task.priority || 'Low'}</p>
-            <button onClick={() => onDelete(task._id)}>Delete</button>
+            <div className="task-actions">
+                <button onClick={handleInProgress}>In Progress</button>
+                <button onClick={handleDelete}>Delete</button>
+            </div>
         </div>
     );
 };
@@ -18,14 +43,14 @@ function TaskItem({ task, onDelete }) {
 // Define PropTypes for TaskItem
 TaskItem.propTypes = {
     task: PropTypes.shape({
-        _id: PropTypes.string.isRequired, // MongoDB ID, required
-        title: PropTypes.string.isRequired, // Task title, required
-        description: PropTypes.string.isRequired, // Task description, required
-        dueDate: PropTypes.string.isRequired, // Due date as ISO string, required
-        priority: PropTypes.string, // Priority (optional, defaults to 'Low' in render)
-        status: PropTypes.string, // Status (optional, assumed from backend)
-    }).isRequired, // task object is required
-    onDelete: PropTypes.func.isRequired, // onDelete must be a function and is required
+        _id: PropTypes.string.isRequired,
+        title: PropTypes.string.isRequired,
+        description: PropTypes.string.isRequired,
+        dueDate: PropTypes.string.isRequired,
+        priority: PropTypes.string,
+        status: PropTypes.string,
+    }).isRequired,
+    onDelete: PropTypes.func.isRequired,
 };
 
 export default TaskItem;

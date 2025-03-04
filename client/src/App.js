@@ -5,8 +5,10 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import TaskCalendar from './pages/TaskCalendar';
 import NotFound from './pages/NotFound';
-import logo from './assets/task-management-logo.png'; // Verify file name and path
+import logo from './assets/task-management-logo.png';
 import './styles/global.css';
+import { ToastContainer } from 'react-toastify'; // Import ToastContainer
+import 'react-toastify/dist/ReactToastify.css'; // Import toast CSS
 
 function App() {
     return (
@@ -34,6 +36,7 @@ function App() {
                         <Route path="*" element={<Navigate to="/404" replace />} />
                     </Routes>
                 </main>
+                <ToastContainer /> {/* Move ToastContainer here, at the root level */}
             </div>
         </Router>
     );

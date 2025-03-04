@@ -5,13 +5,13 @@ const CalendarEvent = require('../models/CalendarEvent'); // Import CalendarEven
 const { createEvent, updateEvent, getEvents, deleteEvent } = require('../services/calendarService'); // Import calendar service
 
 // Load AI models at server startup (call this in server.js)
-aiServices.loadModels().then(() => console.log('AI models loaded')).catch(err => console.error('Error loading AI models:', err));
+// aiServices.loadModels().then(() => console.log('AI models loaded')).catch(err => console.error('Error loading AI models:', err));
 
-// Controller to get all tasks (only Pending or In Progress, excluding Completed)
+// Controller to get all tasks (including Pending, In Progress, and Completed)
 const getTasks = async (req, res) => {
   try {
     const startTime = Date.now();
-    const tasks = await Task.find({ status: { $in: ['Pending', 'In Progress'] } }).sort({ createdAt: -1 });
+    const tasks = await Task.find().sort({ createdAt: -1 }); // Fetch all tasks, sorted by creation date
     const endTime = Date.now();
     console.log(`Fetched tasks in ${endTime - startTime}ms`);
     // Filter out AI prediction fields from the response
@@ -60,7 +60,7 @@ const createTask = async (req, res) => {
     const newTask = new Task({
       title,
       description,
-      status: status || 'Pending',
+      status: status || 'Pending', // Default to 'Pending' unless specified
       dueDate: dueDate || new Date(),
       priority: taskPriority,
       // Removed AI prediction fields (productivityPrediction, taskbenchPrediction, jiraTaskComplexity)
@@ -72,6 +72,7 @@ const createTask = async (req, res) => {
 
     // If status is 'Completed', set completed to true
     if (status === 'Completed') {
+      newTask.status = 'Completed';
       newTask.completed = true;
     }
 
@@ -144,7 +145,7 @@ const createTask = async (req, res) => {
   }
 };
 
-// Controller to update a task (with AI predictions disabled, focusing on core features)
+// Controller to update a task (with status transitions for In Progress and Completed)
 const updateTask = async (req, res) => {
   try {
     const startTime = Date.now();
@@ -164,16 +165,24 @@ const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    // If status is updated to 'Completed' or completed is set to true, ensure consistency (fast operation)
-    if (updates.status === 'Completed' || updates.completed === true) {
+    // Handle status transitions and completed status (fast operation)
+    if (updates.status) {
+      if (updates.status === 'In Progress') {
+        updatedTask.status = 'In Progress';
+        updatedTask.completed = false;
+      } else if (updates.status === 'Completed') {
+        updatedTask.status = 'Completed';
+        updatedTask.completed = true;
+      } else if (updates.status === 'Pending') {
+        updatedTask.status = 'Pending';
+        updatedTask.completed = false;
+      }
+    } else if (updates.completed === true) {
       updatedTask.status = 'Completed';
       updatedTask.completed = true;
-    } else if (updates.status && updates.status !== 'Completed') {
-      updatedTask.completed = false;
-      updatedTask.status = updates.status;
     } else if (updates.completed === false) {
-      updatedTask.completed = false;
       updatedTask.status = 'Pending';
+      updatedTask.completed = false;
     }
 
     await updatedTask.save();

@@ -1,15 +1,16 @@
 // server/models/Task.js
 const mongoose = require('mongoose');
 
-// Define the Task schema
 const taskSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
+    trim: true, // Remove whitespace for cleaner data
   },
   description: {
     type: String,
     required: true,
+    trim: true, // Remove whitespace for cleaner data
   },
   status: {
     type: String,
@@ -60,6 +61,7 @@ const taskSchema = new mongoose.Schema({
     type: Number,
     required: true, // Ensure estimatedDays is required
     min: 0.5,
+    max: 5, // Cap at 5 days to match your estimateCompletionTime logic
     default: 1,
   },
   // Optional field for future AI summaries (remove if not needed)
@@ -67,17 +69,22 @@ const taskSchema = new mongoose.Schema({
     type: String,
     default: null, // Explicitly set to null if not provided
   },
-}, { timestamps: true });
+}, {
+  timestamps: true, // Automatically add createdAt and updatedAt
+});
+
+// Add indexes for better query performance
+taskSchema.index({ status: 1 }); // Index on status for filtering (e.g., Kanban board)
+taskSchema.index({ dueDate: 1 }); // Index on dueDate for sorting and filtering
+taskSchema.index({ createdAt: -1 }); // Index on createdAt for sorting (descending)
 
 // Middleware to ensure consistency between status and completed on save
 taskSchema.pre('save', function(next) {
   if (this.status === 'Completed') {
     this.completed = true;
-  } else if (this.completed === true) {
-    this.status = 'Completed';
   } else {
     this.completed = false;
-    this.status = 'Pending'; // Reset to Pending if not Completed
+    this.status = this.status === 'In Progress' ? 'In Progress' : 'Pending'; // Ensure In Progress stays as is, else reset to Pending
   }
   next();
 });
@@ -98,10 +105,10 @@ taskSchema.pre('findOneAndUpdate', async function(next) {
   if (update.status === 'Completed' || update.completed === true) {
     newStatus = 'Completed';
     newCompleted = true;
-  } else if (update.status && update.status !== 'Completed') {
-    newStatus = update.status;
+  } else if (update.status === 'In Progress') {
+    newStatus = 'In Progress';
     newCompleted = false;
-  } else if (update.completed === false) {
+  } else if (update.status === 'Pending' || update.completed === false) {
     newStatus = 'Pending';
     newCompleted = false;
   }

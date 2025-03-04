@@ -25,6 +25,24 @@
     color: #333;
 }
 
+.task-item-with-actions {
+    margin-bottom: 10px;
+}
+
+.task-item-with-actions button {
+    padding: 5px 10px;
+    background-color: #007bff; /* Blue for Completed */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+.task-item-with-actions button:hover {
+    background-color: #0056b3;
+}
+
 .error {
     color: red;
     margin-bottom: 10px;

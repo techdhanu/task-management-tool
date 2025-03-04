@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { createTask } from '../api/api';
-import PropTypes from 'prop-types'; // Import PropTypes
+import PropTypes from 'prop-types';
+import { toast } from 'react-toastify'; // Import only toast (no ToastContainer)
 import './TaskForm.css';
 
 const TaskForm = ({ onTaskCreated }) => {
@@ -29,8 +30,10 @@ const TaskForm = ({ onTaskCreated }) => {
             onTaskCreated(response.data);
             reset();
             setError('');
+            toast.success('Task created successfully!'); // Keep toast call
         } catch (err) {
             setError('Error creating task: ' + (err.response?.data?.message || err.message));
+            toast.error('Error creating task: ' + (err.response?.data?.message || err.message)); // Keep toast call
         }
     };
 
@@ -108,7 +111,7 @@ const TaskForm = ({ onTaskCreated }) => {
 
 // Define PropTypes for TaskForm
 TaskForm.propTypes = {
-    onTaskCreated: PropTypes.func.isRequired, // onTaskCreated must be a function and is required
+    onTaskCreated: PropTypes.func.isRequired,
 };
 
 export default TaskForm;
