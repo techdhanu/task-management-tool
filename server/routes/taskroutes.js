@@ -1,47 +1,23 @@
+// server/routes/taskroutes.js
 const express = require('express');
 const {
   createTask,
   getTasks,
   updateTask,
-  deleteTask
+  deleteTask,
+  getCalendarEvents
 } = require('../controllers/taskController');
+const authMiddleware = require('../middleware/auth'); // Import from middleware
 
 const router = express.Router();
 
-// Route to get all tasks
-router.get('/', async (req, res, next) => {
-  try {
-    await getTasks(req, res);
-  } catch (error) {
-    next(error); // Forward error to global error handler if defined
-  }
-});
+// Apply middleware to all routes
+router.use(authMiddleware);
 
-// Route to create a new task
-router.post('/', async (req, res, next) => {
-  try {
-    await createTask(req, res);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Route to update a task by id
-router.put('/:id', async (req, res, next) => {
-  try {
-    await updateTask(req, res);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Route to delete a task by id
-router.delete('/:id', async (req, res, next) => {
-  try {
-    await deleteTask(req, res);
-  } catch (error) {
-    next(error);
-  }
-});
+router.get('/', getTasks);           // GET /api/tasks - Fetch user's tasks
+router.post('/', createTask);        // POST /api/tasks - Create a task
+router.put('/:id', updateTask);      // PUT /api/tasks/:id - Update a task
+router.delete('/:id', deleteTask);   // DELETE /api/tasks/:id - Delete a task
+router.get('/tasks/calendar/events', getCalendarEvents); // GET calendar events (if still needed)
 
 module.exports = router;

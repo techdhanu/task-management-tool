@@ -1,61 +1,143 @@
+// server/controllers/authController.js
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
-// User registration
+// Optional: For token blacklisting (not implemented here, but noted for future)
+const TokenBlacklist = require('../models/TokenBlacklist'); // Create this model if needed
+
 const register = async (req, res) => {
-  const { name, email, password } = req.body;
+  console.log('Registration attempt from IP:', req.ip, 'with body:', req.body);
 
   try {
-    // Check if the user already exists
+    const { email, password, name } = req.body;
+
+    // Basic input validation (complementing express-validator in authRoutes)
+    if (!email || !password || !name) {
+      return res.status(400).json({ message: 'All fields (email, password, name) are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+    if (name.length < 2 || name.length > 50) {
+      return res.status(400).json({ message: 'Name must be between 2 and 50 characters' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create a new user - removed password hashing here since it's handled by the model
-    const newUser = new User({ name, email, password });
+    // Hash password
+    const salt = await bcrypt.genSalt(10); // Use 10 rounds for performance (<6–7s)
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user
+    const newUser = new User({
+      email,
+      password: hashedPassword,
+      name,
+    });
+
     await newUser.save();
 
-    // Create a token
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Generate JWT token
+    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.status(201).json({ token, user: newUser });
+    const startTime = Date.now();
+    // Return success response
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: newUser._id,
+        email: newUser.email,
+        name: newUser.name,
+      },
+    });
+    const endTime = Date.now();
+    console.log(`Registration completed in ${endTime - startTime}ms for user ${email}`);
   } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json({ message: 'Error registering user', error: error.message });
+    console.error('Registration error for user', email, ':', error.stack);
+    res.status(500).json({ message: 'Server error during registration', error: error.message });
   }
 };
 
-// User login
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  console.log('Login attempt from IP:', req.ip, 'with body:', req.body);
 
   try {
-    // Find the user by email
+    const { email, password } = req.body;
+
+    // Basic input validation (complementing express-validator in authRoutes)
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Compare the provided password with the hashed password in the database
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Compare passwords
+    const isMatch = await user.comparePassword(password); // Use method from User.js
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Create a JWT token if the password matches
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Generate JWT token
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    // Remove password from the response
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    res.status(200).json({ token, user: userResponse });
+    const startTime = Date.now();
+    // Return success response
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+    const endTime = Date.now();
+    console.log(`Login completed in ${endTime - startTime}ms for user ${email}`);
   } catch (error) {
-    console.error('Error logging in:', error);
-    res.status(500).json({ message: 'Error logging in', error: error.message });
+    console.error('Login error for user', email, ':', error.stack);
+    res.status(500).json({ message: 'Server error during login', error: error.message });
   }
 };
 
-module.exports = { register, login };
+const logout = async (req, res) => {
+  console.log('Logout attempt from IP:', req.ip, 'with token:', req.headers.authorization);
+
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Expect "Bearer <token>"
+
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    // Optional: Blacklist token (not implemented here, but noted for production)
+    // await TokenBlacklist.create({ token, expiresAt: new Date(Date.now() + 3600000) }); // 1 hour
+
+    const startTime = Date.now();
+    res.status(200).json({ message: 'Logged out successfully' });
+    const endTime = Date.now();
+    console.log(`Logout completed in ${endTime - startTime}ms`);
+  } catch (error) {
+    console.error('Logout error:', error.stack);
+    res.status(500).json({ message: 'Server error during logout', error: error.message });
+  }
+};
+
+module.exports = { register, login, logout };

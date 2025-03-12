@@ -1,20 +1,34 @@
 // server/controllers/taskController.js
 const Task = require('../models/Task');
 const aiServices = require('../services/aiservices');
-const CalendarEvent = require('../models/CalendarEvent'); // Import CalendarEvent model
-const { createEvent, updateEvent, getEvents, deleteEvent } = require('../services/calendarService'); // Import calendar service
+const CalendarEvent = require('../models/CalendarEvent');
+const { createEvent, updateEvent, getEvents, deleteEvent } = require('../services/calendarService');
 
-// Load AI models at server startup (call this in server.js)
-// aiServices.loadModels().then(() => console.log('AI models loaded')).catch(err => console.error('Error loading AI models:', err));
-
-// Controller to get all tasks (including Pending, In Progress, and Completed)
-const getTasks = async (req, res) => {
+// Controller to get all calendar events
+const getCalendarEvents = async (req, res) => {
   try {
     const startTime = Date.now();
-    const tasks = await Task.find().sort({ createdAt: -1 }); // Fetch all tasks, sorted by creation date
+    const events = await getEvents();
+    console.log(`Fetched calendar events: ${events.length} events`, events);
     const endTime = Date.now();
-    console.log(`Fetched tasks in ${endTime - startTime}ms`);
-    // Filter out AI prediction fields from the response
+    console.log(`Fetched calendar events in ${endTime - startTime}ms`);
+    res.status(200).json(events);
+  } catch (error) {
+    console.error('Error fetching calendar events:', error.message, error.stack);
+    res.status(500).json({ message: 'Server error while fetching calendar events', error: error.message });
+  }
+};
+
+const getTasks = async (req, res) => {
+  try {
+    console.log('Fetching tasks for user:', req.user ? req.user.userId : 'No user in request');
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ message: 'Authentication required or invalid user' });
+    }
+    const startTime = Date.now();
+    const tasks = await Task.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    const endTime = Date.now();
+    console.log(`Fetched tasks in ${endTime - startTime}ms for user ${req.user.userId}`);
     const filteredTasks = tasks.map(task => ({
       title: task.title,
       description: task.description,
@@ -22,9 +36,12 @@ const getTasks = async (req, res) => {
       dueDate: task.dueDate,
       priority: task.priority,
       completed: task.completed,
-      resourceEstimate: task.resourceEstimate, // Keep if needed for resource tracking
+      resourceEstimate: task.resourceEstimate,
       teamSize: task.teamSize,
       estimatedDays: task.estimatedDays,
+      productivityPrediction: task.productivityPrediction || 'Low',
+      taskbenchPrediction: task.taskbenchPrediction || 0,
+      jiraTaskComplexity: task.jiraTaskComplexity || 0,
       _id: task._id,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -32,61 +49,76 @@ const getTasks = async (req, res) => {
     }));
     res.status(200).json(filteredTasks);
   } catch (error) {
-    console.error('Error fetching tasks:', error);
-    res.status(500).json({ message: 'Server error while fetching tasks' });
+    console.error('Error fetching tasks:', error.stack);
+    res.status(500).json({ message: 'Server error while fetching tasks', error: error.message });
   }
 };
 
-// Controller to create a new task (with AI predictions disabled, focusing on core features)
 const createTask = async (req, res) => {
   try {
     const startTime = Date.now();
     const { title, description, dueDate, priority, status, additionalData } = req.body;
 
-    // Get priority suggestion if not provided (fast, no Python involved)
     let taskPriority = priority;
     if (!priority || priority === '') {
-      taskPriority = await aiServices.suggestPriority(description, dueDate); // Fast, rule-based, no Python
+      taskPriority = await aiServices.suggestPriority(description, dueDate);
     }
 
-    // Calculate teamSize and estimatedDays dynamically (fast, no AI needed)
     const taskComplexity = additionalData?.taskComplexity || 5;
     const resourceAllocation = additionalData?.resourceAllocation || 3;
     const teamSize = aiServices.estimateTeamSize(taskComplexity, taskPriority);
     const estimatedDays = aiServices.estimateCompletionTime(taskComplexity, teamSize, taskPriority);
-    const resourceEstimate = Math.round((taskComplexity + resourceAllocation) / 2); // Simple heuristic for resource estimate
+    const resourceEstimate = Math.round((taskComplexity + resourceAllocation) / 2);
 
-    // Create new task without AI predictions
+    const productivityPrediction = await aiServices.predictRemoteWorkProductivity({
+      taskComplexity,
+      resourceAllocation,
+      Hours_Worked_Per_Week: 40,
+      Employment_Type: 'Remote'
+    });
+    const taskbenchPrediction = await aiServices.predictTaskbenchProductivity({
+      taskComplexity,
+      resourceAllocation,
+      Hours_Worked_Per_Week: 40,
+      Employment_Type: 'Remote'
+    });
+    const jiraTaskComplexity = await aiServices.predictJiraTaskComplexity({
+      taskComplexity,
+      resourceAllocation,
+      Hours_Worked_Per_Week: 40,
+      Employment_Type: 'Remote'
+    });
+
     const newTask = new Task({
       title,
       description,
-      status: status || 'Pending', // Default to 'Pending' unless specified
+      status: status || 'Pending',
       dueDate: dueDate || new Date(),
       priority: taskPriority,
-      // Removed AI prediction fields (productivityPrediction, taskbenchPrediction, jiraTaskComplexity)
       resourceEstimate,
       teamSize,
       estimatedDays,
-      completed: false
+      completed: false,
+      productivityPrediction,
+      taskbenchPrediction,
+      jiraTaskComplexity,
+      userId: req.user.userId
     });
 
-    // If status is 'Completed', set completed to true
     if (status === 'Completed') {
       newTask.status = 'Completed';
       newTask.completed = true;
     }
 
-    // Save the task to the database (fast operation)
     const savedTask = await newTask.save();
 
-    // Create a local CalendarEvent and attempt Google Calendar synchronization (fast, with timeout)
     if (savedTask && savedTask.dueDate) {
       const calendarEvent = new CalendarEvent({
         taskId: savedTask._id,
         title: title,
         description: description,
         startTime: savedTask.dueDate,
-        endTime: new Date(savedTask.dueDate.getTime() + 3600000), // 1 hour duration
+        endTime: new Date(savedTask.dueDate.getTime() + 3600000),
         location: 'N/A',
         allDay: false,
         recurring: false,
@@ -97,7 +129,6 @@ const createTask = async (req, res) => {
         const savedCalendarEvent = await calendarEvent.save();
         console.log('Local Calendar Event created in ' + (Date.now() - calendarStart) + 'ms:', savedCalendarEvent);
 
-        // Attempt to create a Google Calendar event with a 5-second timeout
         const eventDetails = {
           summary: title,
           description: description,
@@ -106,23 +137,22 @@ const createTask = async (req, res) => {
           location: 'N/A',
         };
 
+        console.log('Attempting to create Google Calendar event:', eventDetails);
         const googleStart = Date.now();
         const googleEvent = await Promise.race([
           createEvent(eventDetails),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000)) // 5-second timeout
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000))
         ]);
         savedCalendarEvent.googleEventId = googleEvent.googleEventId;
         await savedCalendarEvent.save();
         console.log('Google Calendar Event created in ' + (Date.now() - googleStart) + 'ms:', googleEvent);
       } catch (calendarError) {
-        console.error('Error creating Google Calendar event, saving locally only:', calendarError.message);
-        // Continue with local event even if Google fails (fast fallback)
+        console.error('Error creating Google Calendar event, saving locally only:', calendarError.message, calendarError.stack);
       }
     }
 
     const endTime = Date.now();
-    console.log(`Task created in ${endTime - startTime}ms`);
-    // Filter out AI prediction fields from the response
+    console.log(`Task created in ${endTime - startTime}ms for user ${req.user.userId}`);
     const filteredTask = {
       title: savedTask.title,
       description: savedTask.description,
@@ -133,6 +163,9 @@ const createTask = async (req, res) => {
       resourceEstimate: savedTask.resourceEstimate,
       teamSize: savedTask.teamSize,
       estimatedDays: savedTask.estimatedDays,
+      productivityPrediction: savedTask.productivityPrediction || 'Low',
+      taskbenchPrediction: savedTask.taskbenchPrediction || 0,
+      jiraTaskComplexity: savedTask.jiraTaskComplexity || 0,
       _id: savedTask._id,
       createdAt: savedTask.createdAt,
       updatedAt: savedTask.updatedAt,
@@ -145,16 +178,20 @@ const createTask = async (req, res) => {
   }
 };
 
-// Controller to update a task (with status transitions for In Progress and Completed)
 const updateTask = async (req, res) => {
   try {
     const startTime = Date.now();
     const { id } = req.params;
     const updates = req.body;
 
-    console.log('Updating task with ID:', id, 'Updates:', updates); // Debug log
+    console.log('Updating task with ID:', id, 'Updates:', updates, 'for user:', req.user.userId);
 
-    // Find task and update (fast operation)
+    const task = await Task.findOne({ _id: id, userId: req.user.userId });
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found or unauthorized' });
+    }
+
+    // Update task with the provided updates (e.g., { status: "In Progress" })
     const updatedTask = await Task.findByIdAndUpdate(
         id,
         updates,
@@ -165,29 +202,14 @@ const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    // Handle status transitions and completed status (fast operation)
+    // Synchronize completed field with status
     if (updates.status) {
-      if (updates.status === 'In Progress') {
-        updatedTask.status = 'In Progress';
-        updatedTask.completed = false;
-      } else if (updates.status === 'Completed') {
-        updatedTask.status = 'Completed';
-        updatedTask.completed = true;
-      } else if (updates.status === 'Pending') {
-        updatedTask.status = 'Pending';
-        updatedTask.completed = false;
-      }
-    } else if (updates.completed === true) {
-      updatedTask.status = 'Completed';
-      updatedTask.completed = true;
-    } else if (updates.completed === false) {
-      updatedTask.status = 'Pending';
-      updatedTask.completed = false;
+      console.log(`Status updated from ${task.status} to ${updates.status}`);
+      updatedTask.completed = updates.status === 'Completed';
+      await updatedTask.save();
     }
 
-    await updatedTask.save();
-
-    // Update or create calendar event if dueDate changes (fast, with timeout)
+    // Update or create calendar event if dueDate changes
     if (updates.dueDate) {
       const calendarEvent = await CalendarEvent.findOne({ taskId: id });
       const calendarStart = Date.now();
@@ -203,14 +225,15 @@ const updateTask = async (req, res) => {
               start: { dateTime: updates.dueDate.toISOString(), timeZone: 'UTC' },
               end: { dateTime: new Date(new Date(updates.dueDate).getTime() + 3600000).toISOString(), timeZone: 'UTC' },
             };
+            console.log('Attempting to update Google Calendar event:', eventUpdates);
             const googleEvent = await Promise.race([
               updateEvent(calendarEvent.googleEventId, eventUpdates),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000)) // 5-second timeout
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000))
             ]);
             console.log('Google Calendar Event updated in ' + (Date.now() - googleStart) + 'ms');
           }
         } catch (calendarError) {
-          console.error('Error updating calendar event:', calendarError.message);
+          console.error('Error updating calendar event:', calendarError.message, calendarError.stack);
         }
       } else if (updates.dueDate) {
         const newCalendarEvent = new CalendarEvent({
@@ -233,23 +256,23 @@ const updateTask = async (req, res) => {
             end: { dateTime: new Date(new Date(updates.dueDate).getTime() + 3600000).toISOString(), timeZone: 'UTC' },
             location: 'N/A',
           };
+          console.log('Attempting to create Google Calendar event:', eventDetails);
           const googleStart = Date.now();
           const googleEvent = await Promise.race([
             createEvent(eventDetails),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000)) // 5-second timeout
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000))
           ]);
           savedCalendarEvent.googleEventId = googleEvent.googleEventId;
           await savedCalendarEvent.save();
-          console.log('Google Calendar Event created in ' + (Date.now() - googleStart) + 'ms');
+          console.log('Google Calendar Event created in ' + (Date.now() - googleStart) + 'ms:', googleEvent);
         } catch (calendarError) {
-          console.error('Error creating calendar event:', calendarError.message);
+          console.error('Error creating calendar event:', calendarError.message, calendarError.stack);
         }
       }
     }
 
     const endTime = Date.now();
-    console.log(`Task updated in ${endTime - startTime}ms`);
-    // Filter out AI prediction fields from the response
+    console.log(`Task updated in ${endTime - startTime}ms for user ${req.user.userId}`);
     const filteredTask = {
       title: updatedTask.title,
       description: updatedTask.description,
@@ -260,6 +283,9 @@ const updateTask = async (req, res) => {
       resourceEstimate: updatedTask.resourceEstimate,
       teamSize: updatedTask.teamSize,
       estimatedDays: updatedTask.estimatedDays,
+      productivityPrediction: updatedTask.productivityPrediction || 'Low',
+      taskbenchPrediction: updatedTask.taskbenchPrediction || 0,
+      jiraTaskComplexity: updatedTask.jiraTaskComplexity || 0,
       _id: updatedTask._id,
       createdAt: updatedTask.createdAt,
       updatedAt: updatedTask.updatedAt,
@@ -272,44 +298,59 @@ const updateTask = async (req, res) => {
   }
 };
 
-// Controller to delete a task (with performance optimization)
 const deleteTask = async (req, res) => {
   try {
     const startTime = Date.now();
     const { id } = req.params;
 
-    console.log('Deleting task with ID:', id); // Debug log
+    console.log('Attempting to delete task with ID:', id, 'for user:', req.user.userId);
 
-    // Find and delete any associated calendar event first (fast, with timeout)
+    const task = await Task.findOne({ _id: id, userId: req.user.userId });
+    if (!task) {
+      console.log(`Task not found or unauthorized for user ${req.user.userId} with ID ${id}`);
+      return res.status(404).json({ message: 'Task not found or unauthorized' });
+    }
+
+    console.log('Task to delete:', {
+      _id: task._id,
+      title: task.title,
+      status: task.status,
+      userId: task.userId
+    });
+
     const calendarEvent = await CalendarEvent.findOne({ taskId: id });
     const calendarStart = Date.now();
     if (calendarEvent) {
+      console.log('Found associated calendar event for task ID:', id);
       if (calendarEvent.googleEventId) {
         try {
           const googleStart = Date.now();
+          console.log('Attempting to delete Google Calendar event:', calendarEvent.googleEventId);
           await Promise.race([
             deleteEvent(calendarEvent.googleEventId),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000)) // 5-second timeout
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Google Calendar timeout after 5s')), 5000))
           ]);
           console.log('Google Calendar Event deleted in ' + (Date.now() - googleStart) + 'ms');
         } catch (calendarError) {
-          console.error('Error deleting Google Calendar event:', calendarError.message);
+          console.error('Error deleting Google Calendar event:', calendarError.message, calendarError.stack);
         }
       }
       await CalendarEvent.findByIdAndDelete(calendarEvent._id);
       console.log('Local Calendar Event deleted in ' + (Date.now() - calendarStart) + 'ms');
+    } else {
+      console.log('No associated calendar event found for task ID:', id);
     }
 
-    // Find task and delete (fast operation)
     const deletedTask = await Task.findByIdAndDelete(id);
 
     if (!deletedTask) {
+      console.log(`Task deletion failed for ID ${id}, possibly already deleted`);
       return res.status(404).json({ message: 'Task not found' });
     }
 
     const endTime = Date.now();
-    console.log(`Task deleted in ${endTime - startTime}ms`);
-    res.status(200).json({ message: 'Task deleted successfully' });
+    console.log(`Task deleted successfully in ${endTime - startTime}ms for user ${req.user.userId}`);
+    res.status(200).json({ message: 'Task deleted successfully', taskId: id });
   } catch (error) {
     console.error('Error deleting task:', error);
     res.status(500).json({ message: 'Server error while deleting task', error: error.message });
@@ -320,5 +361,6 @@ module.exports = {
   getTasks,
   createTask,
   updateTask,
-  deleteTask
+  deleteTask,
+  getCalendarEvents,
 };

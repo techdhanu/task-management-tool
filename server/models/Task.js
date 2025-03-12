@@ -5,12 +5,12 @@ const taskSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
-    trim: true, // Remove whitespace for cleaner data
+    trim: true,
   },
   description: {
     type: String,
     required: true,
-    trim: true, // Remove whitespace for cleaner data
+    trim: true,
   },
   status: {
     type: String,
@@ -32,67 +32,66 @@ const taskSchema = new mongoose.Schema({
     default: false,
     required: true,
   },
-  // AI prediction fields (optional, not shown in responses, kept for future use or analytics)
   productivityPrediction: {
-    type: String, // Categorical labels (e.g., 'Low', 'Medium', 'High')
-    default: null, // Explicitly set to null if not provided
+    type: String,
+    default: null,
   },
   taskbenchPrediction: {
-    type: Number, // Numeric score
-    default: null, // Explicitly set to null if not provided
+    type: Number,
+    default: null,
   },
   jiraTaskComplexity: {
-    type: Number, // Numeric score
-    default: null, // Explicitly set to null if not provided
+    type: Number,
+    default: null,
   },
   resourceEstimate: {
-    type: Number, // Numeric resource estimate
-    default: null, // Explicitly set to null if not provided
+    type: Number,
+    default: null,
   },
-  // Team and time estimates (required, calculated dynamically)
   teamSize: {
     type: Number,
-    required: true, // Ensure teamSize is required
+    required: true,
     min: 1,
     max: 5,
     default: 1,
   },
   estimatedDays: {
     type: Number,
-    required: true, // Ensure estimatedDays is required
+    required: true,
     min: 0.5,
-    max: 5, // Cap at 5 days to match your estimateCompletionTime logic
+    max: 5,
     default: 1,
   },
-  // Optional field for future AI summaries (remove if not needed)
   aiSummary: {
     type: String,
-    default: null, // Explicitly set to null if not provided
+    default: null,
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
   },
 }, {
-  timestamps: true, // Automatically add createdAt and updatedAt
+  timestamps: true,
 });
 
-// Add indexes for better query performance
-taskSchema.index({ status: 1 }); // Index on status for filtering (e.g., Kanban board)
-taskSchema.index({ dueDate: 1 }); // Index on dueDate for sorting and filtering
-taskSchema.index({ createdAt: -1 }); // Index on createdAt for sorting (descending)
+taskSchema.index({ userId: 1, status: 1 });
+taskSchema.index({ dueDate: 1 });
+taskSchema.index({ createdAt: -1 });
 
-// Middleware to ensure consistency between status and completed on save
 taskSchema.pre('save', function(next) {
   if (this.status === 'Completed') {
     this.completed = true;
   } else {
     this.completed = false;
-    this.status = this.status === 'In Progress' ? 'In Progress' : 'Pending'; // Ensure In Progress stays as is, else reset to Pending
+    this.status = this.status === 'In Progress' ? 'In Progress' : 'Pending';
   }
   next();
 });
 
-// Middleware to ensure consistency between status and completed on findOneAndUpdate
 taskSchema.pre('findOneAndUpdate', async function(next) {
   const update = this.getUpdate();
-  const doc = await this.model.findOne(this.getFilter()); // Fetch the current document
+  const doc = await this.model.findOne(this.getFilter());
 
   if (!doc) {
     return next(new Error('Task not found'));
@@ -101,24 +100,20 @@ taskSchema.pre('findOneAndUpdate', async function(next) {
   let newStatus = doc.status;
   let newCompleted = doc.completed;
 
-  // Apply updates
-  if (update.status === 'Completed' || update.completed === true) {
-    newStatus = 'Completed';
-    newCompleted = true;
-  } else if (update.status === 'In Progress') {
-    newStatus = 'In Progress';
-    newCompleted = false;
-  } else if (update.status === 'Pending' || update.completed === false) {
-    newStatus = 'Pending';
-    newCompleted = false;
+  // Prioritize status from update object
+  if (update.status && ['Pending', 'In Progress', 'Completed'].includes(update.status)) {
+    newStatus = update.status;
+    newCompleted = newStatus === 'Completed';
+  } else if (update.completed !== undefined) {
+    newCompleted = update.completed;
+    newStatus = newCompleted ? 'Completed' : (doc.status === 'In Progress' ? 'In Progress' : 'Pending');
   }
 
-  // Update the query to ensure consistency
+  // Update the query with the resolved values
   this.set({ status: newStatus, completed: newCompleted });
   next();
 });
 
-// Create the Task model
 const Task = mongoose.model('Task', taskSchema);
 
 module.exports = Task;

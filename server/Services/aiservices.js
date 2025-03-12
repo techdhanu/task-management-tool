@@ -19,25 +19,36 @@ const loadModels = async () => {
     for (const modelName of modelNames) {
         try {
             const modelPath = path.join(__dirname, '..', 'ai_models', modelName);
-            if (!fs.existsSync(modelPath)) { // Use fs.existsSync instead of os.existsSync
+            console.log(`Checking model path: ${modelPath}`); // Debug log
+            if (!fs.existsSync(modelPath)) {
                 console.error(`Model file not found: ${modelPath}`);
-                modelCache[modelName] = null;
+                modelCache[modelName] = { model: null, error: 'Model file not found' };
+                continue;
+            }
+
+            const scriptPath = path.resolve(__dirname, '..', 'ai_models'); // Use resolve for absolute path
+            const scriptFile = path.join(scriptPath, 'load_model.py');
+            console.log(`Script path: ${scriptPath}, script file: ${scriptFile}`); // Debug log
+            if (!fs.existsSync(scriptFile)) {
+                console.error(`load_model.py not found at: ${scriptFile}`);
+                modelCache[modelName] = { model: null, error: 'load_model.py not found' };
                 continue;
             }
 
             const options = {
                 mode: 'text',
                 pythonOptions: ['-u'],
-                scriptPath: path.join(__dirname, '..', 'services'),
-                args: [modelPath, '{}'] // Empty input to load model only
+                scriptPath: scriptPath, // Absolute path to ai_models
+                args: [modelPath, '{}'], // Empty input to load model only
+                timeout: 5000 // 5-second timeout to ensure <6–7 seconds performance
             };
 
-            console.log(`Loading model: ${modelName} from ${modelPath}`);
+            console.log(`Loading model: ${modelName} from ${modelPath} with options:`, options); // Debug log
             const startTime = Date.now();
             const result = await new Promise((resolve, reject) => {
                 PythonShell.run('load_model.py', options, (err, results) => {
                     if (err) {
-                        console.error(`Error loading ${modelName}:`, err.traceback || err.message);
+                        console.error(`Error loading ${modelName}:`, err.stack || err.message); // Enhanced error logging
                         reject(err);
                     } else {
                         resolve(results ? results[0] : null);
@@ -49,27 +60,29 @@ const loadModels = async () => {
 
             try {
                 const parsedResult = JSON.parse(result || '{}');
-                modelCache[modelName] = parsedResult.model ? { model: parsedResult.model } : null;
-                if (!modelCache[modelName] || !modelCache[modelName].model) {
+                if (parsedResult.model) {
+                    modelCache[modelName] = { model: parsedResult.model, loadedAt: new Date() };
+                    console.log(`Successfully loaded ${modelName}:`, parsedResult.model); // Debug log
+                } else if (parsedResult.error) {
+                    modelCache[modelName] = { model: null, error: parsedResult.error };
+                    console.error(`Invalid model data for ${modelName}: ${parsedResult.error}`);
+                } else {
+                    modelCache[modelName] = { model: null, error: 'Invalid model data' };
                     console.error(`Invalid model data for ${modelName}, caching failed`);
-                    modelCache[modelName] = null;
                 }
             } catch (parseError) {
-                console.error(`Error parsing model data for ${modelName}:`, parseError);
-                modelCache[modelName] = null;
+                console.error(`Error parsing model data for ${modelName}:`, parseError.stack);
+                modelCache[modelName] = { model: null, error: parseError.message };
             }
         } catch (error) {
-            console.error(`Failed to load model ${modelName}:`, error);
-            modelCache[modelName] = null; // Mark as failed
+            console.error(`Failed to load model ${modelName}:`, error.stack);
+            modelCache[modelName] = { model: null, error: error.message };
         }
     }
-    console.log('Model cache:', modelCache);
+    console.log('Model cache after loading:', modelCache);
 };
 
-// Load models during server startup (call this in server.js)
-module.exports.loadModels = loadModels;
-
-// Function to make predictions using cached models (fast, no disk I/O)
+// Function to make predictions using cached models (fast, with timeout)
 const makePrediction = (modelName, inputData) => {
     return new Promise((resolve, reject) => {
         if (!modelCache[modelName] || !modelCache[modelName].model) {
@@ -84,25 +97,41 @@ const makePrediction = (modelName, inputData) => {
 
         try {
             const modelPath = path.join(__dirname, '..', 'ai_models', modelName);
-            let options = {
+            const scriptPath = path.resolve(__dirname, '..', 'ai_models');
+            const scriptFile = path.join(scriptPath, 'load_model.py');
+            console.log(`Prediction script path: ${scriptPath}, script file: ${scriptFile}`); // Debug log
+            if (!fs.existsSync(scriptFile)) {
+                console.error(`load_model.py not found at: ${scriptFile}`);
+                if (modelName.includes('remote_work_productivity')) {
+                    resolve('Low');
+                } else {
+                    resolve(0);
+                }
+                return;
+            }
+
+            const options = {
                 mode: 'text',
                 pythonOptions: ['-u'],
-                scriptPath: path.join(__dirname, '..', 'services'),
-                args: [modelPath, JSON.stringify({ ...inputData, cachedModel: modelCache[modelName] })]
+                scriptPath: scriptPath, // Absolute path to ai_models
+                args: [modelPath, JSON.stringify({ ...inputData, cachedModel: modelCache[modelName].model })],
+                timeout: 5000 // 5-second timeout to ensure <6–7 seconds performance
             };
 
+            console.log(`Prediction options for ${modelName}:`, options); // Debug log
             const startTime = Date.now();
             PythonShell.run('load_model.py', options, (err, results) => {
                 const endTime = Date.now();
                 console.log(`Prediction for ${modelName} completed in ${endTime - startTime}ms`);
 
                 if (err) {
-                    console.error(`Error predicting with ${modelName}:`, err.traceback || err.message);
+                    console.error(`Error predicting with ${modelName}:`, err.stack || err.message);
                     if (modelName.includes('remote_work_productivity')) {
                         resolve('Low'); // Default to 'Low' for classification errors
                     } else {
                         resolve(0); // Default to 0 for regression errors
                     }
+                    reject(err);
                     return;
                 }
 
@@ -135,21 +164,23 @@ const makePrediction = (modelName, inputData) => {
                         }
                     }
                 } catch (parseError) {
-                    console.error('Error parsing Python result:', parseError);
+                    console.error(`Error parsing Python result for ${modelName}:`, parseError.stack);
                     if (modelName.includes('remote_work_productivity')) {
                         resolve('Low'); // Default to 'Low' for classification parsing errors
                     } else {
                         resolve(0); // Default to 0 for regression parsing errors
                     }
+                    reject(parseError);
                 }
             });
         } catch (error) {
-            console.error('Error in makePrediction:', error);
+            console.error(`Error in makePrediction for ${modelName}:`, error.stack);
             if (modelName.includes('remote_work_productivity')) {
                 resolve('Low'); // Default to 'Low' for classification errors
             } else {
                 resolve(0); // Default to 0 for regression errors
             }
+            reject(error);
         }
     });
 };
@@ -235,9 +266,9 @@ const generateTaskSummary = async (title, description, dueDate, taskComplexity, 
 
         const startTime = Date.now();
         const [productivity, taskbench, jira] = await Promise.all([
-            makePrediction('tuned_model_cleaned_remote_work_productivity.pkl', baseInput),
-            makePrediction('best_model_cleaned_improved_taskbench.pkl', baseInput),
-            makePrediction('best_model_cleaned_jira_data.pkl', baseInput)
+            predictRemoteWorkProductivity(baseInput),
+            predictTaskbenchProductivity(baseInput),
+            predictJiraTaskComplexity(baseInput)
         ]);
         const endTime = Date.now();
         console.log(`AI predictions completed in ${endTime - startTime}ms`);
@@ -259,7 +290,7 @@ const generateTaskSummary = async (title, description, dueDate, taskComplexity, 
                      Task should be completed by ${new Date(dueDate).toDateString()}. Productivity is ${productivity.toLowerCase()}.`
         };
     } catch (error) {
-        console.error('Error generating task summary:', error);
+        console.error('Error generating task summary:', error.stack);
         return {
             priority: 'Medium',
             teamSize: 1,
@@ -278,9 +309,9 @@ const predictRemoteWorkProductivity = async (inputData) => {
         const startTime = Date.now();
         const result = await makePrediction('tuned_model_cleaned_remote_work_productivity.pkl', inputData);
         console.log(`Remote work productivity prediction completed in ${Date.now() - startTime}ms`);
-        return result;
+        return result || 'Low'; // Ensure string for classification, default to 'Low'
     } catch (error) {
-        console.error('Error predicting remote work productivity:', error);
+        console.error('Error predicting remote work productivity:', error.stack);
         return 'Low'; // Default to 'Low' for classification errors
     }
 };
@@ -291,9 +322,9 @@ const predictTaskbenchProductivity = async (inputData) => {
         const startTime = Date.now();
         const result = await makePrediction('best_model_cleaned_improved_taskbench.pkl', inputData);
         console.log(`Taskbench productivity prediction completed in ${Date.now() - startTime}ms`);
-        return result;
+        return result !== null && !isNaN(result) ? parseFloat(result) : 0; // Ensure numeric, default to 0
     } catch (error) {
-        console.error('Error predicting taskbench productivity:', error);
+        console.error('Error predicting taskbench productivity:', error.stack);
         return 0;
     }
 };
@@ -304,9 +335,9 @@ const predictJiraTaskComplexity = async (inputData) => {
         const startTime = Date.now();
         const result = await makePrediction('best_model_cleaned_jira_data.pkl', inputData);
         console.log(`Jira task complexity prediction completed in ${Date.now() - startTime}ms`);
-        return result;
+        return result !== null && !isNaN(result) ? parseFloat(result) : 0; // Ensure numeric, default to 0
     } catch (error) {
-        console.error('Error predicting Jira task complexity:', error);
+        console.error('Error predicting Jira task complexity:', error.stack);
         return 0;
     }
 };
@@ -317,9 +348,9 @@ const predictMergedModel = async (inputData) => {
         const startTime = Date.now();
         const result = await makePrediction('model_merged_file.pkl', inputData);
         console.log(`Merged model prediction completed in ${Date.now() - startTime}ms`);
-        return result;
+        return result !== null && !isNaN(result) ? parseFloat(result) : 0; // Ensure numeric, default to 0
     } catch (error) {
-        console.error('Error predicting with merged model:', error);
+        console.error('Error predicting with merged model:', error.stack);
         return 0;
     }
 };
