@@ -1,7 +1,9 @@
+// server/server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
+const jwt = require('jsonwebtoken'); // Ensure jwt is installed
 require('dotenv').config();
 
 const taskRoutes = require('./routes/taskroutes');
@@ -39,8 +41,28 @@ aiServices.loadModels()
     .then(() => console.log('AI models loaded successfully'))
     .catch(err => console.error('Error loading AI models:', err));
 
+// Authentication middleware (defined here for clarity, but can be in a separate file)
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Expect "Bearer <token>"
+
+    if (!token) {
+        return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) {
+            console.error('Token verification error:', err);
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+        req.user = user; // Attach user to request (contains userId)
+        console.log('Authenticated user:', user); // Debug log
+        next();
+    });
+};
+
 // Routes
-app.use('/api/tasks', taskRoutes);
+app.use('/api/tasks', authenticateToken, taskRoutes); // Ensure authenticateToken is applied to task routes
 app.use('/api/auth', authRoutes);
 
 // AI model status endpoint
@@ -80,4 +102,4 @@ const server = app.listen(PORT, () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-// No need to export modelCache here; it's imported from aiServices
+module.exports = { authenticateToken }; // Export for testing or other modules

@@ -1,0 +1,56 @@
+/* client/src/pages/Register.css */
+.register {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.register h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.register form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.register input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.register button {
+    padding: 10px;
+    background-color: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.register button:hover {
+    background-color: #0052a3;
+}
+
+.register .error {
+    color: red;
+    text-align: center;
+}
+
+.register p {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.register a {
+    color: #0066cc;
+    text-decoration: none;
+}

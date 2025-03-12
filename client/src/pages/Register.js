@@ -1,42 +1,43 @@
-// client/src/pages/Login.js
+// client/src/pages/Register.js
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { login } from '../api/api';
+import { useNavigate } from 'react-router-dom';
+import { register } from '../api/api';
 import { toast } from 'react-toastify';
-import './Login.css';
+import './Register.css';
 
-function Login() {
+function Register() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
-    const location = useLocation();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await login({ email, password });
-            console.log('Login response:', response); // Debug log
-            // Store the token in localStorage
-            localStorage.setItem('token', response.token);
-            // Show success popup
-            toast.success('Logged in successfully!');
-            // Redirect to Dashboard
-            const from = location.state?.from?.pathname || '/';
-            navigate(from, { replace: true });
+            const response = await register({ email, password, name });
+            localStorage.setItem('token', response.token); // Store JWT token
+            toast.success('Registered successfully! Please log in.');
+            navigate('/login');
         } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Login failed';
+            const errorMessage = err.response?.data?.message || 'Registration failed';
             setError(errorMessage);
             toast.error(errorMessage);
-            console.error('Login error:', err);
         }
     };
 
     return (
-        <div className="login">
-            <h1>Login</h1>
+        <div className="register">
+            <h1>Register</h1>
             {error && <p className="error">{error}</p>}
             <form onSubmit={handleSubmit}>
+                <input
+                    type="text"
+                    placeholder="Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                />
                 <input
                     type="email"
                     placeholder="Email"
@@ -51,13 +52,13 @@ function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                 />
-                <button type="submit">Login</button>
+                <button type="submit">Register</button>
             </form>
             <p>
-                Don&apos;t have an account? <a href="/register">Register</a>
+                Already have an account? <a href="/login">Login</a>
             </p>
         </div>
     );
 }
 
-export default Login;
+export default Register;

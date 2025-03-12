@@ -15,17 +15,6 @@ function TaskItem({ task, onDelete }) {
             toast.error('Error deleting task: ' + (err.response?.data?.message || err.message)); // Keep toast call
         }
     };
-
-    const handleInProgress = async () => {
-        try {
-            const updatedTask = await updateTask(task._id, { status: 'In Progress' });
-            onDelete(task._id); // Refresh the list (you might want to update state directly)
-            toast.success('Task moved to In Progress successfully!'); // Keep toast call
-        } catch (err) {
-            toast.error('Error moving task to In Progress: ' + (err.response?.data?.message || err.message)); // Keep toast call
-        }
-    };
-
     return (
         <div className="task-item">
             <h3>{task.title}</h3>
@@ -33,7 +22,6 @@ function TaskItem({ task, onDelete }) {
             <p>Due: {new Date(task.dueDate).toLocaleString()}</p>
             <p>Priority: {task.priority || 'Low'}</p>
             <div className="task-actions">
-                <button onClick={handleInProgress}>In Progress</button>
                 <button onClick={handleDelete}>Delete</button>
             </div>
         </div>

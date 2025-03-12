@@ -1,26 +1,101 @@
-/* client/src/pages/TaskCalendar.css */
 .task-calendar {
-    padding: 20px;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    max-width: 900px;
+    margin: 30px auto;
+}
+
+.calendar-filters {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 25px;
+    background-color: var(--background-color);
+    padding: 10px;
+    border-radius: var(--border-radius);
+}
+
+.calendar-filters button {
+    margin: 0 10px;
+    padding: 10px 20px;
+    border: none;
+    background-color: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    border-radius: 25px;
+    transition: all var(--transition-speed) ease;
+    font-weight: 500;
+}
+
+.calendar-filters button.active {
+    background-color: var(--secondary-color);
+    color: white;
+    box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
+}
+
+.calendar-filters button:hover {
+    background-color: rgba(52, 152, 219, 0.1);
 }
 
 .calendar-view {
     display: grid;
-    gap: 10px;
+    gap: 15px;
 }
 
 .calendar-event {
-    background-color: #f8f9fa;
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ddd;
+    background-color: white;
+    border-left: 5px solid var(--secondary-color);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
 }
 
-.calendar-event h3 {
-    margin: 0 0 5px;
-    color: #333;
+.calendar-event:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-.error {
-    color: red;
-    margin-bottom: 10px;
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.event-header h3 {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.event-status {
+    font-size: 0.8em;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+}
+
+.loading, .error, .no-events {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 30px;
+    background-color: var(--background-color);
+    border-radius: var(--border-radius);
+}
+
+@media (max-width: 768px) {
+    .task-calendar {
+        padding: 15px;
+        margin: 15px;
+    }
+
+    .calendar-filters {
+        flex-direction: column;
+    }
+
+    .calendar-filters button {
+        margin: 5px 0;
+    }
 }

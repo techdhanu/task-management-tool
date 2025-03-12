@@ -1,9 +1,54 @@
 /* client/src/pages/Tasks.css */
-.tasks-page {
+.tasks {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.tasks h1 {
+    text-align: center;
+}
+
+.task-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-form input,
+.task-form textarea,
+.task-form select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.task-form button {
+    padding: 10px;
+    background-color: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100px;
+}
+
+.task-form button:hover {
+    background-color: #0052a3;
+}
+
+.loading {
+    text-align: center;
     padding: 20px;
 }
 
 .error {
     color: red;
-    margin-bottom: 10px;
+    text-align: center;
 }
